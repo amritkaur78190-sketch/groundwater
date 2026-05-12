@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AquaDeep — Groundwater Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep: #020d18;
+    --abyss: #040f1e;
+    --ocean: #063052;
+    --current: #0a4f82;
+    --surface: #1a7abf;
+    --shimmer: #3db8f5;
+    --foam: #a8e6ff;
+    --mist: #d6f2ff;
+    --white: #f0faff;
+    --accent: #00e5c9;
+    --warning: #f5c842;
+    --danger: #f56b42;
+    --safe: #42f5a7;
+    --text: #c8e8f5;
+    --muted: #5a8eaa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--deep);
+    color: var(--text);
+    font-family: 'Lora', Georgia, serif;
+    overflow-x: hidden;
+  }
+
+  /* ── ANIMATED WATER BACKGROUND ── */
+  .water-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .water-bg::before {
+    content: '';
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    top: -50%;
+    left: -50%;
+    background: radial-gradient(ellipse 80% 60% at 20% 40%, rgba(10,79,130,0.25) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 80% at 80% 60%, rgba(0,229,201,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse 100% 100% at 50% 50%, rgba(4,15,30,0.9) 0%, transparent 70%);
+    animation: drift 20s ease-in-out infinite alternate;
+  }
+
+  .water-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg, rgba(61,184,245,0.03) 0px, transparent 1px, transparent 80px, rgba(61,184,245,0.03) 81px),
+      repeating-linear-gradient(0deg, rgba(61,184,245,0.02) 0px, transparent 1px, transparent 80px, rgba(61,184,245,0.02) 81px);
+  }
+
+  @keyframes drift {
+    0% { transform: translate(0,0) rotate(0deg); }
+    100% { transform: translate(-3%,-2%) rotate(1deg); }
+  }
+
+  .bubble {
+    position: fixed;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(168,230,255,0.3), rgba(61,184,245,0.05));
+    border: 1px solid rgba(61,184,245,0.15);
+    animation: rise linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes rise {
+    0% { transform: translateY(110vh) scale(0.8); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 0.4; }
+    100% { transform: translateY(-20vh) scale(1.1); opacity: 0; }
+  }
+
+  /* ── LAYOUT ── */
+  .wrapper { position: relative; z-index: 1; }
+
+  /* ── NAVBAR ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.2rem 4rem;
+    background: linear-gradient(to bottom, rgba(2,13,24,0.95), rgba(2,13,24,0));
+    backdrop-filter: blur(2px);
+    border-bottom: 1px solid rgba(61,184,245,0.06);
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: 0.02em;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .nav-links {
+    display: flex;
+    gap: 2.5rem;
+    list-style: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s;
+    position: relative;
+  }
+
+  .nav-links a::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: -4px; right: 0;
+    height: 1px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+
+  .nav-links a:hover { color: var(--shimmer); }
+  .nav-links a:hover::after { transform: scaleX(1); }
+
+  .nav-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.6rem 1.4rem;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .nav-btn:hover {
+    background: var(--accent);
+    color: var(--deep);
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 8rem 4rem 4rem;
+    position: relative;
+  }
+
+  .hero-content { max-width: 660px; }
+
+  .hero-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .hero-tag::before {
+    content: '';
+    width: 30px; height: 1px;
+    background: var(--accent);
+  }
+
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3rem, 6vw, 5.5rem);
+    line-height: 1.05;
+    color: var(--white);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--shimmer);
+  }
+
+  .hero p {
+    font-size: 1.05rem;
+    line-height: 1.9;
+    color: var(--text);
+    margin-bottom: 3rem;
+    max-width: 520px;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 1rem 2rem;
+    background: var(--accent);
+    color: var(--deep);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: var(--foam);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,229,201,0.3);
+  }
+
+  .btn-outline {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 1rem 2rem;
+    background: transparent;
+    color: var(--shimmer);
+    border: 1px solid rgba(61,184,245,0.4);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-outline:hover {
+    border-color: var(--shimmer);
+    background: rgba(61,184,245,0.07);
+  }
+
+  /* depth viz */
+  .hero-visual {
+    position: absolute;
+    right: 4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 360px;
+    height: 480px;
+  }
+
+  .depth-diagram {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  .depth-layer {
+    position: absolute;
+    left: 0; right: 0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    gap: 1rem;
+    animation: layerPulse 4s ease-in-out infinite;
+  }
+
+  @keyframes layerPulse {
+    0%,100% { opacity: 0.85; }
+    50% { opacity: 1; }
+  }
+
+  .depth-layer:nth-child(1) { top: 0; height: 60px; background: linear-gradient(135deg, rgba(139,90,43,0.4), rgba(120,80,30,0.3)); border: 1px solid rgba(139,90,43,0.3); animation-delay: 0s; }
+  .depth-layer:nth-child(2) { top: 70px; height: 50px; background: linear-gradient(135deg, rgba(110,80,40,0.4), rgba(90,70,30,0.3)); border: 1px solid rgba(110,80,40,0.3); animation-delay: 0.3s; }
+  .depth-layer:nth-child(3) { top: 130px; height: 70px; background: linear-gradient(135deg, rgba(10,79,130,0.5), rgba(6,48,82,0.4)); border: 1px solid rgba(61,184,245,0.4); animation-delay: 0.6s; }
+  .depth-layer:nth-child(4) { top: 210px; height: 55px; background: linear-gradient(135deg, rgba(80,60,30,0.4), rgba(60,45,20,0.3)); border: 1px solid rgba(100,80,40,0.3); animation-delay: 0.9s; }
+  .depth-layer:nth-child(5) { top: 275px; height: 90px; background: linear-gradient(135deg, rgba(3,80,150,0.6), rgba(0,60,120,0.5)); border: 1px solid rgba(0,229,201,0.5); animation-delay: 1.2s; }
+  .depth-layer:nth-child(6) { top: 375px; height: 50px; background: linear-gradient(135deg, rgba(60,40,20,0.5), rgba(40,25,10,0.4)); border: 1px solid rgba(80,60,30,0.3); animation-delay: 1.5s; }
+  .depth-layer:nth-child(7) { top: 435px; height: 45px; background: linear-gradient(135deg, rgba(5,100,180,0.5), rgba(2,70,130,0.4)); border: 1px solid rgba(61,184,245,0.3); animation-delay: 1.8s; }
+
+  .layer-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--foam);
+    white-space: nowrap;
+  }
+
+  .layer-depth {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .water-indicator {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    flex-shrink: 0;
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── STATS ── */
+  .stats-bar {
+    padding: 3rem 4rem;
+    border-top: 1px solid rgba(61,184,245,0.08);
+    border-bottom: 1px solid rgba(61,184,245,0.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    background: rgba(4,15,30,0.5);
+    backdrop-filter: blur(10px);
+  }
+
+  .stat-item {
+    text-align: center;
+    position: relative;
+  }
+
+  .stat-item::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 20%; bottom: 20%;
+    width: 1px;
+    background: rgba(61,184,245,0.1);
+  }
+
+  .stat-item:last-child::after { display: none; }
+
+  .stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.8rem;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-num span { color: var(--accent); }
+
+  .stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── SECTION ── */
+  section { padding: 6rem 4rem; }
+
+  .section-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .section-tag::before { content: '//'; opacity: 0.5; }
+
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    color: var(--white);
+    line-height: 1.15;
+    margin-bottom: 1.2rem;
+  }
+
+  h2 em { font-style: italic; color: var(--shimmer); }
+
+  .section-desc {
+    font-size: 1rem;
+    line-height: 1.85;
+    color: var(--text);
+    max-width: 560px;
+    margin-bottom: 3.5rem;
+  }
+
+  /* ── PARAMETERS GRID ── */
+  .params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .param-card {
+    background: linear-gradient(135deg, rgba(6,48,82,0.4), rgba(4,15,30,0.6));
+    border: 1px solid rgba(61,184,245,0.12);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s;
+    cursor: pointer;
+  }
+
+  .param-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--surface), transparent);
+    transform: scaleX(0);
+    transition: transform 0.4s;
+  }
+
+  .param-card:hover {
+    border-color: rgba(61,184,245,0.35);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    background: linear-gradient(135deg, rgba(10,79,130,0.4), rgba(4,15,30,0.7));
+  }
+
+  .param-card:hover::before { transform: scaleX(1); }
+
+  .param-icon {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .param-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .param-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    color: var(--white);
+    margin-bottom: 0.8rem;
+  }
+
+  .param-desc {
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+
+  .param-range {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .range-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .range-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(61,184,245,0.1);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .range-fill {
+    height: 100%;
+    border-radius: 2px;
+    animation: fillBar 2s ease-out forwards;
+  }
+
+  @keyframes fillBar {
+    from { width: 0; }
+  }
+
+  .fill-safe { background: linear-gradient(90deg, var(--safe), rgba(66,245,167,0.5)); }
+  .fill-warn { background: linear-gradient(90deg, var(--warning), rgba(245,200,66,0.5)); }
+  .fill-danger { background: linear-gradient(90deg, var(--danger), rgba(245,107,66,0.5)); }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.7rem;
+    border-radius: 2px;
+  }
+
+  .badge-safe { background: rgba(66,245,167,0.1); color: var(--safe); border: 1px solid rgba(66,245,167,0.2); }
+  .badge-warn { background: rgba(245,200,66,0.1); color: var(--warning); border: 1px solid rgba(245,200,66,0.2); }
+  .badge-danger { background: rgba(245,107,66,0.1); color: var(--danger); border: 1px solid rgba(245,107,66,0.2); }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ── ANALYSIS DASHBOARD ── */
+  .dashboard {
+    background: rgba(4,15,30,0.6);
+    border: 1px solid rgba(61,184,245,0.1);
+    backdrop-filter: blur(10px);
+    padding: 2.5rem;
+    margin-top: 3rem;
+  }
+
+  .dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(61,184,245,0.08);
+  }
+
+  .dash-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--shimmer);
+  }
+
+  .dash-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--safe);
+  }
+
+  .chart-area {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+  }
+
+  .chart-box {
+    background: rgba(2,13,24,0.5);
+    border: 1px solid rgba(61,184,245,0.08);
+    padding: 1.5rem;
+  }
+
+  .chart-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  /* SVG chart */
+  .chart-svg { width: 100%; height: 160px; }
+
+  /* Radial meters */
+  .meters-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .meter {
+    background: rgba(2,13,24,0.5);
+    border: 1px solid rgba(61,184,245,0.08);
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .meter svg { width: 80px; height: 80px; }
+
+  .meter-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.5rem;
+  }
+
+  .meter-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--white);
+  }
+
+  /* ── CONTAMINATION SECTION ── */
+  .contamination {
+    background: linear-gradient(180deg, transparent, rgba(6,48,82,0.2), transparent);
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: start;
+  }
+
+  .threat-list { display: flex; flex-direction: column; gap: 1rem; }
+
+  .threat-item {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(4,15,30,0.6);
+    border: 1px solid rgba(61,184,245,0.08);
+    border-left: 3px solid;
+    transition: all 0.3s;
+  }
+
+  .threat-item:hover { transform: translateX(4px); }
+  .threat-high { border-left-color: var(--danger); }
+  .threat-med { border-left-color: var(--warning); }
+  .threat-low { border-left-color: var(--safe); }
+
+  .threat-icon { font-size: 1.5rem; flex-shrink: 0; }
+
+  .threat-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  .threat-high .threat-name { color: var(--danger); }
+  .threat-med .threat-name { color: var(--warning); }
+  .threat-low .threat-name { color: var(--safe); }
+
+  .threat-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── AQUIFER MAP ── */
+  .map-section { padding-top: 0; }
+
+  .aquifer-map {
+    background: rgba(4,15,30,0.8);
+    border: 1px solid rgba(61,184,245,0.12);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .map-svg { width: 100%; height: 320px; }
+
+  /* ── PROCESS TIMELINE ── */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin-top: 3rem;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--accent), rgba(0,229,201,0.1));
+  }
+
+  .timeline-item {
+    position: relative;
+    padding: 0 0 3rem 2.5rem;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -4px; top: 6px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+  }
+
+  .tl-step {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.4rem;
+  }
+
+  .tl-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .tl-desc {
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--muted);
+    max-width: 460px;
+  }
+
+  /* ── TREATMENT ── */
+  .treatment-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-top: 3rem;
+  }
+
+  .treatment-card {
+    background: linear-gradient(160deg, rgba(6,48,82,0.3), rgba(4,15,30,0.7));
+    border: 1px solid rgba(61,184,245,0.1);
+    padding: 2rem 1.5rem;
+    transition: all 0.4s;
+  }
+
+  .treatment-card:hover {
+    background: linear-gradient(160deg, rgba(10,79,130,0.35), rgba(4,15,30,0.8));
+    border-color: rgba(0,229,201,0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 16px 50px rgba(0,0,0,0.4);
+  }
+
+  .tc-icon { font-size: 2rem; margin-bottom: 1.2rem; }
+
+  .tc-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    color: var(--white);
+    margin-bottom: 0.6rem;
+  }
+
+  .tc-desc {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 4rem;
+    border-top: 1px solid rgba(61,184,245,0.08);
+    background: rgba(2,13,24,0.8);
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 3rem;
+  }
+
+  .footer-brand .logo { display: block; margin-bottom: 1rem; }
+
+  .footer-brand p {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--muted);
+    max-width: 280px;
+  }
+
+  .footer-col h4 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--shimmer);
+    margin-bottom: 1.2rem;
+  }
+
+  .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.7rem; }
+
+  .footer-col a {
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+
+  .footer-col a:hover { color: var(--text); }
+
+  .footer-bottom {
+    padding: 1.5rem 4rem;
+    border-top: 1px solid rgba(61,184,245,0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-bottom p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s, transform 0.7s;
+  }
+
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── INTERACTIVE CALCULATOR ── */
+  .calc-section { background: rgba(4,15,30,0.4); }
+
+  .calc-box {
+    background: rgba(4,15,30,0.7);
+    border: 1px solid rgba(61,184,245,0.12);
+    padding: 2.5rem;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .calc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .input-group label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .input-group input, .input-group select {
+    background: rgba(2,13,24,0.8);
+    border: 1px solid rgba(61,184,245,0.15);
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+
+  .input-group input:focus, .input-group select:focus {
+    border-color: var(--accent);
+  }
+
+  .input-group select option { background: var(--abyss); }
+
+  .calc-result {
+    background: rgba(0,229,201,0.05);
+    border: 1px solid rgba(0,229,201,0.2);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    display: none;
+  }
+
+  .calc-result.show { display: block; }
+
+  .result-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .result-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    color: var(--white);
+  }
+
+  .result-note {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- Bubbles -->
+<div class="water-bg"></div>
+<div id="bubbles"></div>
+
+<div class="wrapper">
+
+<!-- NAV -->
+<nav>
+  <div class="logo">Aqua<span>Deep</span></div>
+  <ul class="nav-links">
+    <li><a href="#parameters">Parameters</a></li>
+    <li><a href="#analysis">Analysis</a></li>
+    <li><a href="#threats">Threats</a></li>
+    <li><a href="#treatment">Treatment</a></li>
+    <li><a href="#calculator">Calculator</a></li>
+  </ul>
+  <button class="nav-btn">Get Report</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-tag">Hydrogeological Intelligence Platform</div>
+    <h1>Beneath the<br>Surface <em>Lies</em><br>the Truth</h1>
+    <p>Comprehensive groundwater analysis combining geological surveying, chemical profiling, and real-time aquifer monitoring to protect our most vital hidden resource.</p>
+    <div class="hero-cta">
+      <button class="btn-primary">Begin Analysis</button>
+      <button class="btn-outline">View Case Studies</button>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="depth-diagram">
+      <div class="depth-layer"><div class="layer-name">Topsoil & Humus</div><div class="layer-depth">0–0.5m</div></div>
+      <div class="depth-layer"><div class="layer-name">Vadose Zone</div><div class="layer-depth">0.5–4m</div></div>
+      <div class="depth-layer"><div class="water-indicator"></div><div class="layer-name">Unconfined Aquifer</div><div class="layer-depth">4–15m</div></div>
+      <div class="depth-layer"><div class="layer-name">Aquitard Clay</div><div class="layer-depth">15–28m</div></div>
+      <div class="depth-layer"><div class="water-indicator"></div><div class="layer-name">Confined Aquifer</div><div class="layer-depth">28–60m</div></div>
+      <div class="depth-layer"><div class="layer-name">Bedrock</div><div class="layer-depth">60–80m</div></div>
+      <div class="depth-layer"><div class="water-indicator"></div><div class="layer-name">Fracture Aquifer</div><div class="layer-depth">80m+</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-item fade-up">
+    <div class="stat-num">97<span>%</span></div>
+    <div class="stat-label">Aquifer Coverage Area</div>
+  </div>
+  <div class="stat-item fade-up">
+    <div class="stat-num">2.5<span>B</span></div>
+    <div class="stat-label">People Rely on Groundwater</div>
+  </div>
+  <div class="stat-item fade-up">
+    <div class="stat-num">30<span>%</span></div>
+    <div class="stat-label">Global Freshwater Supply</div>
+  </div>
+  <div class="stat-item fade-up">
+    <div class="stat-num">120<span>+</span></div>
+    <div class="stat-label">Chemical Parameters Tested</div>
+  </div>
+</div>
+
+<!-- PARAMETERS -->
+<section id="parameters">
+  <div class="section-tag">Water Quality Parameters</div>
+  <h2>What We <em>Measure</em></h2>
+  <p class="section-desc">Every water source tells a story. Our multi-parameter analysis examines physical, chemical, and biological properties to deliver a complete groundwater profile.</p>
+
+  <div class="params-grid">
+
+    <div class="param-card fade-up">
+      <div class="param-icon">⚗️</div>
+      <div class="param-name">Chemical</div>
+      <div class="param-title">pH Level</div>
+      <div class="param-desc">Measures hydrogen ion concentration. Groundwater pH affects mineral solubility and corrosion potential in distribution systems.</div>
+      <div class="param-range">
+        <span class="range-label">6.5</span>
+        <div class="range-bar"><div class="range-fill fill-safe" style="width:72%"></div></div>
+        <span class="range-label">8.5</span>
+      </div>
+      <br>
+      <span class="status-badge badge-safe"><span class="badge-dot"></span>Optimal Range</span>
+    </div>
+
+    <div class="param-card fade-up">
+      <div class="param-icon">⚡</div>
+      <div class="param-name">Physical</div>
+      <div class="param-title">Electrical Conductivity</div>
+      <div class="param-desc">Indicates dissolved salt content. High EC values suggest mineral contamination or saltwater intrusion in coastal aquifers.</div>
+      <div class="param-range">
+        <span class="range-label">0</span>
+        <div class="range-bar"><div class="range-fill fill-warn" style="width:58%"></div></div>
+        <span class="range-label">2500 μS</span>
+      </div>
+      <br>
+      <span class="status-badge badge-warn"><span class="badge-dot"></span>Elevated</span>
+    </div>
+
+    <div class="param-card fade-up">
+      <div class="param-icon">💧</div>
+      <div class="param-name">Chemical</div>
+      <div class="param-title">Total Dissolved Solids</div>
+      <div class="param-desc">Sum of all dissolved minerals, salts, and organic matter. WHO guideline is below 500 mg/L for drinking water.</div>
+      <div class="param-range">
+        <span class="range-label">0</span>
+        <div class="range-bar"><div class="range-fill fill-safe" style="width:45%"></div></div>
+        <span class="range-label">1000 mg/L</span>
+      </div>
+      <br>
+      <span class="status-badge badge-safe"><span class="badge-dot"></span>Acceptable</span>
+    </div>
+
+    <div class="param-card fade-up">
+      <div class="param-icon">🧪</div>
+      <div class="param-name">Chemical</div>
+      <div class="param-title">Nitrate Concentration</div>
+      <div class="param-desc">Elevated nitrates from agriculture and sewage indicate anthropogenic pollution. Critical risk for infants — causes methemoglobinemia.</div>
+      <div class="param-range">
+        <span class="range-label">0</span>
+        <div class="range-bar"><div class="range-fill fill-danger" style="width:82%"></div></div>
+        <span class="range-label">50 mg/L</span>
+      </div>
+      <br>
+      <span class="status-badge badge-danger"><span class="badge-dot"></span>High Risk</span>
+    </div>
+
+    <div class="param-card fade-up">
+      <div class="param-icon">🦠</div>
+      <div class="param-name">Biological</div>
+      <div class="param-title">Coliform Bacteria</div>
+      <div class="param-desc">Presence of fecal coliforms indicates sewage contamination. WHO standard: zero coliform per 100mL for safe drinking water.</div>
+      <div class="param-range">
+        <span class="range-label">0</span>
+        <div class="range-bar"><div class="range-fill fill-safe" style="width:5%"></div></div>
+        <span class="range-label">100 CFU</span>
+      </div>
+      <br>
+      <span class="status-badge badge-safe"><span class="badge-dot"></span>Non-Detect</span>
+    </div>
+
+    <div class="param-card fade-up">
+      <div class="param-icon">⚠️</div>
+      <div class="param-name">Inorganic</div>
+      <div class="param-title">Arsenic & Heavy Metals</div>
+      <div class="param-desc">Naturally occurring or industrial-origin metals like arsenic, lead, and fluoride pose serious long-term health hazards at trace concentrations.</div>
+      <div class="param-range">
+        <span class="range-label">0</span>
+        <div class="range-bar"><div class="range-fill fill-warn" style="width:38%"></div></div>
+        <span class="range-label">0.05 mg/L</span>
+      </div>
+      <br>
+      <span class="status-badge badge-warn"><span class="badge-dot"></span>Monitor Closely</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ANALYSIS DASHBOARD -->
+<section id="analysis" style="padding-top:0">
+  <div class="section-tag">Live Monitoring Dashboard</div>
+  <h2>Real-Time <em>Aquifer</em> Data</h2>
+
+  <div class="dashboard fade-up">
+    <div class="dash-header">
+      <div class="dash-title">Station: GW-7 | Depth: 34m | Gujarat Basin</div>
+      <div class="dash-status">● Live Feed Active</div>
+    </div>
+
+    <div class="chart-area">
+      <div class="chart-box">
+        <div class="chart-label">TDS Levels — Last 12 Months (mg/L)</div>
+        <svg class="chart-svg" viewBox="0 0 500 160">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(61,184,245,0.3)"/>
+              <stop offset="100%" stop-color="rgba(61,184,245,0)"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="40" x2="500" y2="40" stroke="rgba(61,184,245,0.06)" stroke-width="1"/>
+          <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(61,184,245,0.06)" stroke-width="1"/>
+          <line x1="0" y1="120" x2="500" y2="120" stroke="rgba(61,184,245,0.06)" stroke-width="1"/>
+          <!-- Area -->
+          <path d="M0,110 L42,95 L84,105 L126,80 L168,88 L210,65 L252,72 L294,55 L336,62 L378,45 L420,50 L462,38 L500,42 L500,160 L0,160 Z" fill="url(#chartGrad)"/>
+          <!-- Line -->
+          <path d="M0,110 L42,95 L84,105 L126,80 L168,88 L210,65 L252,72 L294,55 L336,62 L378,45 L420,50 L462,38 L500,42" fill="none" stroke="var(--shimmer)" stroke-width="2" stroke-linejoin="round"/>
+          <!-- Dots -->
+          <circle cx="294" cy="55" r="4" fill="var(--accent)" />
+          <circle cx="500" cy="42" r="4" fill="var(--accent)" />
+          <!-- Labels -->
+          <text x="2" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Jan</text>
+          <text x="44" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Feb</text>
+          <text x="86" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Mar</text>
+          <text x="128" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Apr</text>
+          <text x="170" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">May</text>
+          <text x="212" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Jun</text>
+          <text x="254" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Jul</text>
+          <text x="296" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Aug</text>
+          <text x="338" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Sep</text>
+          <text x="380" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Oct</text>
+          <text x="422" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Nov</text>
+          <text x="464" y="155" font-family="'DM Mono',monospace" font-size="9" fill="rgba(90,142,170,0.7)">Dec</text>
+        </svg>
+      </div>
+
+      <div class="meters-grid">
+        <div class="meter">
+          <svg viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(61,184,245,0.1)" stroke-width="6"/>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--safe)" stroke-width="6"
+              stroke-dasharray="201" stroke-dashoffset="70" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+            <text x="40" y="44" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="white">7.2</text>
+          </svg>
+          <div class="meter-label">pH Level</div>
+        </div>
+        <div class="meter">
+          <svg viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(61,184,245,0.1)" stroke-width="6"/>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--warning)" stroke-width="6"
+              stroke-dasharray="201" stroke-dashoffset="100" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+            <text x="40" y="44" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="white">1240</text>
+          </svg>
+          <div class="meter-label">EC μS/cm</div>
+        </div>
+        <div class="meter">
+          <svg viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(61,184,245,0.1)" stroke-width="6"/>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--shimmer)" stroke-width="6"
+              stroke-dasharray="201" stroke-dashoffset="120" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+            <text x="40" y="44" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="white">22°C</text>
+          </svg>
+          <div class="meter-label">Temperature</div>
+        </div>
+        <div class="meter">
+          <svg viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(61,184,245,0.1)" stroke-width="6"/>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--safe)" stroke-width="6"
+              stroke-dasharray="201" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+            <text x="40" y="44" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="white">6.8</text>
+          </svg>
+          <div class="meter-label">DO mg/L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THREATS -->
+<section id="threats" class="contamination">
+  <div class="two-col">
+    <div>
+      <div class="section-tag">Contamination Sources</div>
+      <h2>Hidden <em>Threats</em><br>Underground</h2>
+      <p class="section-desc">Groundwater contamination originates from diverse anthropogenic and geological sources. Early detection is critical to preventing irreversible aquifer degradation.</p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="tl-step">Step 01</div>
+          <div class="tl-title">Source Identification</div>
+          <div class="tl-desc">Mapping all potential contaminant sources within the watershed — industrial facilities, agricultural zones, and septic systems.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-step">Step 02</div>
+          <div class="tl-title">Geological Assessment</div>
+          <div class="tl-desc">Analyzing rock formations, soil permeability, and fault lines to model contaminant transport pathways through the subsurface.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-step">Step 03</div>
+          <div class="tl-title">Sampling & Lab Analysis</div>
+          <div class="tl-desc">Collecting stratified water samples at multiple depths, analyzed for 120+ chemical and microbiological parameters.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-step">Step 04</div>
+          <div class="tl-title">Risk Modeling & Reporting</div>
+          <div class="tl-desc">Generating predictive contamination plume models and issuing remediation recommendations with priority rankings.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="threat-list">
+      <div class="threat-item threat-high fade-up">
+        <div class="threat-icon">🏭</div>
+        <div>
+          <div class="threat-name">Industrial Effluents</div>
+          <div class="threat-desc">Heavy metals (chromium, lead, cadmium) and volatile organic compounds from manufacturing discharge seep through unsaturated zones into shallow aquifers.</div>
+        </div>
+      </div>
+      <div class="threat-item threat-high fade-up">
+        <div class="threat-icon">🌾</div>
+        <div>
+          <div class="threat-name">Agricultural Runoff</div>
+          <div class="threat-desc">Nitrates, phosphates, and pesticide residues from fertilizer overuse create a diffuse pollution source that's extremely difficult to remediate once established.</div>
+        </div>
+      </div>
+      <div class="threat-item threat-med fade-up">
+        <div class="threat-icon">🪨</div>
+        <div>
+          <div class="threat-name">Geogenic Arsenic</div>
+          <div class="threat-desc">Naturally occurring arsenic mobilized by oxidizing pyrite minerals in sedimentary rocks. Prevalent in alluvial plains and deltaic regions.</div>
+        </div>
+      </div>
+      <div class="threat-item threat-med fade-up">
+        <div class="threat-icon">🌊</div>
+        <div>
+          <div class="threat-name">Saltwater Intrusion</div>
+          <div class="threat-desc">Overpumping of coastal aquifers allows seawater to migrate inland, causing permanent salinization of freshwater lenses in island and coastal systems.</div>
+        </div>
+      </div>
+      <div class="threat-item threat-low fade-up">
+        <div class="threat-icon">🏘️</div>
+        <div>
+          <div class="threat-name">Urban Leachate</div>
+          <div class="threat-desc">Landfill leachate, fuel spills, and aging sewage infrastructure create localized contamination plumes in peri-urban groundwater systems.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TREATMENT -->
+<section id="treatment">
+  <div class="section-tag">Remediation Technologies</div>
+  <h2>Restoring <em>Purity</em></h2>
+  <p class="section-desc">Once contamination is characterised, we deploy targeted treatment technologies matched to the specific pollutant chemistry and hydrogeological conditions.</p>
+
+  <div class="treatment-cards">
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">🔵</div>
+      <div class="tc-title">Reverse Osmosis</div>
+      <div class="tc-desc">Semi-permeable membranes remove dissolved salts, heavy metals, nitrates, and organic compounds. Achieves 95–99% rejection rates for most contaminants.</div>
+    </div>
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">☀️</div>
+      <div class="tc-title">UV Disinfection</div>
+      <div class="tc-desc">Germicidal ultraviolet light inactivates pathogens including bacteria, viruses, and protozoa without introducing chemical residuals.</div>
+    </div>
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">🌿</div>
+      <div class="tc-title">Phytoremediation</div>
+      <div class="tc-desc">Hyperaccumulator plants such as sunflower and Indian mustard extract heavy metals from shallow aquifer zones through their root systems.</div>
+    </div>
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">⚗️</div>
+      <div class="tc-title">Activated Carbon</div>
+      <div class="tc-desc">Granular activated carbon adsorption removes pesticides, pharmaceuticals, chlorinated solvents, and taste/odour compounds with high efficiency.</div>
+    </div>
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">🔬</div>
+      <div class="tc-title">Bioremediation</div>
+      <div class="tc-desc">Engineered microbial communities degrade petroleum hydrocarbons, chlorinated solvents, and organic contaminants in situ without excavation.</div>
+    </div>
+    <div class="treatment-card fade-up">
+      <div class="tc-icon">💎</div>
+      <div class="tc-title">Ion Exchange</div>
+      <div class="tc-desc">Resin beads selectively replace harmful ions (nitrate, arsenic, fluoride) with benign ions, producing high-quality treated water at scale.</div>
+    </div>
+  </div>
+</section>
+
+<!-- CALCULATOR -->
+<section id="calculator" class="calc-section">
+  <div class="section-tag">Water Quality Tool</div>
+  <h2>Quick <em>Assessment</em></h2>
+  <p class="section-desc">Enter your water sample readings for an instant preliminary quality assessment.</p>
+
+  <div class="calc-box fade-up">
+    <div class="calc-grid">
+      <div class="input-group">
+        <label>pH Value</label>
+        <input type="number" id="ph" min="0" max="14" step="0.1" placeholder="e.g. 7.2">
+      </div>
+      <div class="input-group">
+        <label>TDS (mg/L)</label>
+        <input type="number" id="tds" min="0" max="10000" placeholder="e.g. 450">
+      </div>
+      <div class="input-group">
+        <label>Nitrates (mg/L)</label>
+        <input type="number" id="nitrate" min="0" placeholder="e.g. 25">
+      </div>
+      <div class="input-group">
+        <label>EC (μS/cm)</label>
+        <input type="number" id="ec" min="0" placeholder="e.g. 800">
+      </div>
+      <div class="input-group">
+        <label>Turbidity (NTU)</label>
+        <input type="number" id="turbidity" min="0" placeholder="e.g. 2">
+      </div>
+      <div class="input-group">
+        <label>Water Use</label>
+        <select id="use">
+          <option value="drinking">Drinking Water</option>
+          <option value="irrigation">Irrigation</option>
+          <option value="industrial">Industrial</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="assess()">Assess Water Quality</button>
+
+    <div class="calc-result" id="result">
+      <div class="result-label">Assessment Result</div>
+      <div class="result-value" id="result-value">—</div>
+      <div class="result-note" id="result-note"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">
+    <span class="logo">Aqua<span>Deep</span></span>
+    <p>Advanced hydrogeological analysis and groundwater monitoring systems for researchers, municipalities, and environmental consultants worldwide.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Services</h4>
+    <ul>
+      <li><a href="#">Field Surveys</a></li>
+      <li><a href="#">Lab Analysis</a></li>
+      <li><a href="#">Aquifer Mapping</a></li>
+      <li><a href="#">Contamination Studies</a></li>
+      <li><a href="#">Remediation Design</a></li>
+    </ul>
+  </div>
+  <div class="footer-col">
+    <h4>Resources</h4>
+    <ul>
+      <li><a href="#">WHO Guidelines</a></li>
+      <li><a href="#">Case Studies</a></li>
+      <li><a href="#">Technical Papers</a></li>
+      <li><a href="#">Data Portal</a></li>
+      <li><a href="#">Training</a></li>
+    </ul>
+  </div>
+  <div class="footer-col">
+    <h4>Company</h4>
+    <ul>
+      <li><a href="#">About</a></li>
+      <li><a href="#">Team</a></li>
+      <li><a href="#">Contact</a></li>
+      <li><a href="#">Careers</a></li>
+    </ul>
+  </div>
+</footer>
+
+<div class="footer-bottom">
+  <p>© 2025 AquaDeep Hydrogeological Analytics. All rights reserved.</p>
+  <p>Built to protect the world's most vital hidden resource.</p>
+</div>
+
+</div><!-- end wrapper -->
+
+<script>
+  // Bubbles
+  const container = document.getElementById('bubbles');
+  for (let i = 0; i < 18; i++) {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = Math.random() * 30 + 6;
+    b.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${Math.random()*100}%;
+      animation-duration:${Math.random()*14+10}s;
+      animation-delay:${Math.random()*15}s;
+    `;
+    container.appendChild(b);
+  }
+
+  // Scroll fade-in
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  // Calculator
+  function assess() {
+    const ph = parseFloat(document.getElementById('ph').value);
+    const tds = parseFloat(document.getElementById('tds').value);
+    const no3 = parseFloat(document.getElementById('nitrate').value);
+    const ec = parseFloat(document.getElementById('ec').value);
+    const turb = parseFloat(document.getElementById('turbidity').value);
+    const use = document.getElementById('use').value;
+
+    let issues = [];
+    let score = 100;
+
+    if (!isNaN(ph)) {
+      if (ph < 6.5 || ph > 8.5) { issues.push(`pH ${ph.toFixed(1)} is outside safe range (6.5–8.5)`); score -= 20; }
+    }
+    if (!isNaN(tds)) {
+      const limit = use === 'drinking' ? 500 : 2000;
+      if (tds > limit) { issues.push(`TDS ${tds} mg/L exceeds ${use} limit (${limit} mg/L)`); score -= 25; }
+    }
+    if (!isNaN(no3)) {
+      if (no3 > 50) { issues.push(`Nitrate ${no3} mg/L exceeds WHO limit of 50 mg/L — HIGH RISK`); score -= 35; }
+      else if (no3 > 25) { issues.push(`Nitrate ${no3} mg/L is elevated (25–50 mg/L) — monitor`); score -= 15; }
+    }
+    if (!isNaN(ec)) {
+      if (ec > 2500) { issues.push(`EC ${ec} μS/cm indicates high mineral content`); score -= 20; }
+    }
+    if (!isNaN(turb)) {
+      if (turb > 5) { issues.push(`Turbidity ${turb} NTU exceeds WHO limit of 5 NTU`); score -= 15; }
+    }
+
+    score = Math.max(0, score);
+    const resultEl = document.getElementById('result');
+    const valueEl = document.getElementById('result-value');
+    const noteEl = document.getElementById('result-note');
+
+    let label, color;
+    if (score >= 80) { label = '✅ Good Quality'; color = 'var(--safe)'; }
+    else if (score >= 55) { label = '⚠️ Moderate — Treatment Advised'; color = 'var(--warning)'; }
+    else { label = '🚫 Poor — Treatment Required'; color = 'var(--danger)'; }
+
+    valueEl.textContent = label;
+    valueEl.style.color = color;
+    noteEl.innerHTML = issues.length
+      ? '<strong>Issues found:</strong><br>• ' + issues.join('<br>• ')
+      : 'No significant issues detected with the provided parameters. Continue periodic monitoring.';
+
+    resultEl.classList.add('show');
+  }
+</script>
+</body>
+</html>
